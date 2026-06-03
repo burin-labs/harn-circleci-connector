@@ -1,0 +1,138 @@
+import { init, shutdown } from "../src/lib"
+import {
+  assert_circleci_interface,
+  circleci_headers,
+  circleci_normalize,
+  fixture_body,
+  fixture_raw,
+  sign_body,
+} from "./helpers"
+
+@complexity(allow)
+pipeline default() {
+  let secret = "test-webhook-secret"
+  assert_circleci_interface()
+  init({signing_secret: secret})
+  // workflow-completed success: full field mapping.
+  let ok = circleci_normalize(fixture_raw("workflow_completed_success", secret, "workflow-completed"))
+  assert_eq(ok.type, "event", "wf success envelope type")
+  assert_eq(ok.event.kind, "workflow-completed", "wf success kind")
+  assert_eq(ok.event.signature_status.state, "verified", "wf success verified")
+  assert_eq(ok.event.payload.is_failure, false, "wf success not a failure")
+  assert_eq(
+    ok.event.payload.commit_sha,
+    "cccccccccccccccccccccccccccccccccccccccc",
+    "wf success commit sha",
+  )
+  assert_eq(ok.event.payload.branch, "main", "wf success branch")
+  assert_eq(ok.event.payload.pipeline_number, 42, "wf success pipeline number")
+  assert_eq(
+    ok.event.payload.workflow_id,
+    "wf-aaaaaaaa-0000-1111-2222-333333333333",
+    "wf success workflow id",
+  )
+  assert_eq(
+    ok.event.payload.rerun_handle.workflow_id,
+    "wf-aaaaaaaa-0000-1111-2222-333333333333",
+    "wf success rerun handle",
+  )
+  assert_eq(ok.event.payload.job, nil, "wf success has no job")
+  assert_eq(
+    ok.event.dedupe_key,
+    "circleci:workflow-completed:delivery-wf-success-1",
+    "wf success dedupe id",
+  )
+  assert_eq(ok.event.payload.triage.is_failure, false, "wf success triage not failure")
+  // workflow-completed failed: failure classification + fork origin repo.
+  let bad = circleci_normalize(fixture_raw("workflow_completed_failed", secret, "workflow-completed"))
+  assert_eq(bad.event.payload.is_failure, true, "wf failed is_failure")
+  assert_eq(bad.event.payload.status, "failed", "wf failed status")
+  assert_eq(bad.event.payload.branch, "feature/login", "wf failed branch")
+  assert_eq(
+    bad.event.payload.origin_repository_url,
+    "https://github.com/contributor/widgets",
+    "wf failed fork origin repo",
+  )
+  assert_eq(bad.event.payload.triage.is_failure, true, "wf failed triage failure")
+  assert_eq(
+    bad.event.payload.triage.rerun_handle.workflow_id,
+    "wf-bbbbbbbb-0000-1111-2222-333333333333",
+    "wf failed triage rerun handle",
+  )
+  assert_eq(
+    bad.event.dedupe_key,
+    "circleci:workflow-completed:delivery-wf-failed-1",
+    "wf failed dedupe id",
+  )
+  // job-completed failed: job sub-shape present.
+  let job = circleci_normalize(fixture_raw("job_completed_failed", secret, "job-completed"))
+  assert_eq(job.event.kind, "job-completed", "job kind")
+  assert_eq(job.event.payload.is_failure, true, "job failed is_failure")
+  assert_eq(job.event.payload.job.name, "test", "job name")
+  assert_eq(job.event.payload.job.job_number, 128, "job number")
+  assert_eq(job.event.payload.job_event.status, "failed", "job_event status")
+  assert_eq(
+    job.event.payload.web_url,
+    "https://app.circleci.com/jobs/github/acme/widgets/128",
+    "job web url",
+  )
+  assert_eq(job.event.dedupe_key, "circleci:job-completed:delivery-job-failed-1", "job dedupe id")
+  // Signature verify: tampered body is rejected (401).
+  let body = fixture_body("workflow_completed_success")
+  let tampered_body = replace(body, "\"main\"", "\"evil\"")
+  let tampered = circleci_normalize(
+    {body_text: tampered_body, headers: circleci_headers(secret, body, "workflow-completed")},
+  )
+  assert_eq(tampered.type, "reject", "tampered body rejects")
+  assert_eq(tampered.reject.status, 401, "tampered body 401")
+  // Signature verify: wrong secret is rejected (401).
+  let wrong_secret = circleci_normalize(
+    {body_text: body, headers: circleci_headers("the-wrong-secret", body, "workflow-completed")},
+  )
+  assert_eq(wrong_secret.type, "reject", "wrong secret rejects")
+  assert_eq(wrong_secret.reject.status, 401, "wrong secret 401")
+  // Signature verify: missing signature header is rejected.
+  let missing_sig = circleci_normalize({body_text: body, headers: {"circleci-event-type": "workflow-completed"}})
+  assert_eq(missing_sig.type, "reject", "missing signature rejects")
+  assert_eq(missing_sig.reject.status, 401, "missing signature 401")
+  // Downgrade defense: only v1 is honored; an unknown high version with a bad
+  // v1 is still rejected.
+  let downgrade = circleci_normalize(
+    {
+      body_text: body,
+      headers: {"circleci-signature": "v2=deadbeef, v1=0000", "circleci-event-type": "workflow-completed"},
+    },
+  )
+  assert_eq(downgrade.type, "reject", "bad v1 with extra version rejects")
+  // Fail-closed: with no secret configured, unsigned webhooks are rejected.
+  shutdown()
+  let unsigned = circleci_normalize(
+    {
+      body_text: body,
+      headers: {"circleci-signature": sign_body(secret, body), "circleci-event-type": "workflow-completed"},
+    },
+  )
+  assert_eq(unsigned.type, "reject", "fail-closed when no secret configured")
+  assert_eq(unsigned.reject.status, 401, "fail-closed 401")
+  assert_eq(unwrap_json(unsigned.reject.body).error, "missing_secret", "fail-closed code")
+  // Invalid JSON body (still signed) rejects with 400.
+  init({signing_secret: secret})
+  let bad_json_body = "{not json"
+  let invalid_json = circleci_normalize(
+    {body_text: bad_json_body, headers: circleci_headers(secret, bad_json_body, "workflow-completed")},
+  )
+  assert_eq(invalid_json.type, "reject", "invalid json rejects")
+  assert_eq(invalid_json.reject.status, 400, "invalid json 400")
+  // Unsupported event type rejects with 400.
+  let unsupported_body = replace(body, "\"workflow-completed\"", "\"ping\"")
+  let unsupported = circleci_normalize(
+    {body_text: unsupported_body, headers: circleci_headers(secret, unsupported_body, "ping")},
+  )
+  assert_eq(unsupported.type, "reject", "unsupported event rejects")
+  assert_eq(unsupported.reject.status, 400, "unsupported event 400")
+  shutdown()
+}
+
+fn unwrap_json(text) {
+  return unwrap(json_parse(text))
+}

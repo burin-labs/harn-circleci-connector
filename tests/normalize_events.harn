@@ -1,0 +1,30 @@
+import { init, shutdown } from "../src/lib"
+import { circleci_normalize, fixture_raw } from "./helpers"
+
+pipeline default() {
+  let secret = "test-webhook-secret"
+  shutdown()
+  init({signing_secret: secret})
+  let cases = [
+    ["workflow_completed_success", "workflow-completed", "workflow-completed", "success", false],
+    ["workflow_completed_failed", "workflow-completed", "workflow-completed", "failed", true],
+    ["job_completed_failed", "job-completed", "job-completed", "failed", true],
+  ]
+  for [name, header, kind, status, is_failure] in cases {
+    let normalized = circleci_normalize(fixture_raw(name, secret, header))
+    assert_eq(normalized.type, "event", name + " envelope type")
+    assert_eq(normalized.event.kind, kind, name + " kind")
+    assert_eq(normalized.event.signature_status.state, "verified", name + " verified")
+    assert_eq(normalized.event.payload.provider, "circleci", name + " provider")
+    assert_eq(normalized.event.payload.status, status, name + " status")
+    assert_eq(normalized.event.payload.is_failure, is_failure, name + " is_failure")
+    assert_eq(normalized.event.payload.project_slug, "github/acme/widgets", name + " project slug")
+    assert_eq(normalized.event.payload.repo, "https://github.com/acme/widgets", name + " repo")
+    assert(normalized.event.payload.raw != nil, name + " includes raw payload")
+    assert(
+      normalized.event.dedupe_key != "" && normalized.event.dedupe_key != nil,
+      name + " dedupe key",
+    )
+  }
+  shutdown()
+}
