@@ -1,0 +1,93 @@
+import { call } from "../src/lib"
+
+@complexity(allow)
+pipeline default() {
+  egress_policy({allow: ["circleci-api.test"], default: "deny"})
+  http_mock_clear()
+  let base = "https://circleci-api.test/api/v2"
+  let token = "circle-token-xyz"
+  let workflow_id = "wf-bbbbbbbb-0000-1111-2222-333333333333"
+  // workflow.rerun (from_failed default true).
+  http_mock(
+    "POST",
+    base + "/workflow/" + workflow_id + "/rerun",
+    {status: 202, body: "{\"workflow_id\":\"" + workflow_id + "\"}"},
+  )
+  let rerun = call("workflow.rerun", {api_base_url: base, api_token: token, workflow_id: workflow_id})
+  assert_eq(rerun.workflow_id, workflow_id, "rerun returns workflow id")
+  // workflow.cancel.
+  http_mock(
+    "POST",
+    base + "/workflow/" + workflow_id + "/cancel",
+    {status: 202, body: "{\"message\":\"Accepted.\"}"},
+  )
+  let cancel = call("workflow.cancel", {api_base_url: base, api_token: token, workflow_id: workflow_id})
+  assert_eq(cancel.message, "Accepted.", "cancel accepted")
+  // workflow.get.
+  http_mock(
+    "GET",
+    base + "/workflow/" + workflow_id,
+    {status: 200, body: "{\"id\":\"" + workflow_id + "\",\"status\":\"failed\"}"},
+  )
+  let wf = call("workflow.get", {api_base_url: base, api_token: token, workflow_id: workflow_id})
+  assert_eq(wf.status, "failed", "workflow get status")
+  // workflow.jobs with pagination token.
+  http_mock(
+    "GET",
+    base + "/workflow/" + workflow_id + "/job?page-token=abc",
+    {
+      status: 200,
+      body: "{\"items\":[{\"name\":\"test\",\"status\":\"failed\"}],\"next_page_token\":null}",
+    },
+  )
+  let jobs = call(
+    "workflow.jobs",
+    {api_base_url: base, api_token: token, page_token: "abc", workflow_id: workflow_id},
+  )
+  assert_eq(jobs.items[0].name, "test", "workflow jobs item name")
+  // job.get by project slug + job number.
+  http_mock(
+    "GET",
+    base + "/project/github/acme/widgets/job/128",
+    {status: 200, body: "{\"number\":128,\"name\":\"test\"}"},
+  )
+  let job = call(
+    "job.get",
+    {api_base_url: base, api_token: token, job_number: 128, project_slug: "github/acme/widgets"},
+  )
+  assert_eq(job.number, 128, "job get number")
+  // artifacts.list.
+  http_mock(
+    "GET",
+    base + "/project/github/acme/widgets/128/artifacts",
+    {
+      status: 200,
+      body: "{\"items\":[{\"path\":\"test-results.xml\",\"url\":\"https://artifacts.test/1\"}]}",
+    },
+  )
+  let artifacts = call(
+    "artifacts.list",
+    {api_base_url: base, api_token: token, job_number: 128, project_slug: "github/acme/widgets"},
+  )
+  assert_eq(artifacts.items[0].path, "test-results.xml", "artifacts path")
+  // api.request escape hatch.
+  http_mock("GET", base + "/me", {status: 200, body: "{\"login\":\"octocat\"}"})
+  let me = call("api.request", {api_base_url: base, api_token: token, method: "GET", path: "/me"})
+  assert_eq(me.login, "octocat", "api.request me login")
+  // Missing token is rejected.
+  let missing_token = call("workflow.get", {api_base_url: base, workflow_id: workflow_id})
+  assert(is_err(missing_token), "missing token rejects")
+  assert_eq(unwrap_err(missing_token).code, "missing_token", "missing token code")
+  // Unsupported method is rejected.
+  let unsupported = call("workflow.frobnicate", {api_base_url: base, api_token: token})
+  assert(is_err(unsupported), "unsupported method rejected")
+  assert_eq(unwrap_err(unsupported).code, "method_not_found", "unsupported method code")
+  // Private/loopback hosts are blocked by egress validation.
+  let blocked = call(
+    "workflow.get",
+    {api_base_url: "https://127.0.0.1/api/v2", api_token: token, workflow_id: workflow_id},
+  )
+  assert(is_err(blocked), "loopback host blocked")
+  assert_eq(unwrap_err(blocked).code, "invalid_api_base_url", "loopback host code")
+  http_mock_clear()
+}
