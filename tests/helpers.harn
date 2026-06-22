@@ -32,7 +32,7 @@ pub fn fixture_body(name) {
 /** Build a signed raw inbound envelope from a named fixture. */
 pub fn fixture_raw(name, secret, event_type, extra = nil) {
   let body = fixture_body(name)
-  return extra ?? {} + {body_text: body, headers: circleci_headers(secret, body, event_type)}
+  return (extra ?? {}) + {body_text: body, headers: circleci_headers(secret, body, event_type)}
 }
 
 pub fn assert_circleci_interface() {
