@@ -2,12 +2,11 @@
 
 Pure-Harn connector package for CircleCI Cloud (REST API v2 + inbound webhooks).
 
-Shared Harn connector authoring rules live in the canonical guide:
+Shared Harn connector authoring rules are in the
+[connector authoring guide](https://github.com/burin-labs/harn/blob/main/docs/src/connectors/authoring.md).
 
-- https://github.com/burin-labs/harn/blob/main/docs/src/connectors/authoring.md
-
-Keep this file limited to provider-specific notes and local hazards. Add shared connector guidance
-to the Harn guide first.
+Keep this file limited to CircleCI-specific notes and local hazards. Put shared connector guidance
+in the Harn guide first.
 
 ## Provider Notes
 

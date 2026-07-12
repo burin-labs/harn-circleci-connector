@@ -61,7 +61,7 @@ CircleCI payloads carry no reliable PR field. Resolve PRs out-of-band by SHA:
 let pulls = circleci.github_commit_pulls("acme", "widgets", event.payload.commit_sha, github_token)
 ```
 
-### Trigger recipe — rerun failed workflows from the last failure
+### Trigger recipe: rerun failed workflows from the last failure
 
 ```harn
 import circleci from "harn-circleci-connector"
@@ -104,5 +104,8 @@ hosts; pass `api_token` per call or set `CIRCLECI_API_TOKEN` / `CIRCLE_TOKEN`.
 
 ## Development
 
-See [AGENTS.md](AGENTS.md) and the canonical
-[connector authoring guide](https://github.com/burin-labs/harn/blob/main/docs/src/connectors/authoring.md).
+Run the package gate:
+
+```sh
+harn connector test "$(pwd)" --provider circleci
+```

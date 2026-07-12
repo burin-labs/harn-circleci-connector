@@ -1,27 +1,26 @@
 # SKILL: harn-circleci-connector
 
 Trigger recipes and outbound helpers for CircleCI via the pure-Harn
-`harn-circleci-connector` package. CI-failure analog to the SCM connectors
-(`harn-github-connector`, `harn-gitlab-connector`).
+`harn-circleci-connector` package.
 
-User story: receive a webhook on CI failure, map it to the PR / commit / branch,
-then diagnose or rerun from an agent.
+Receive a CI-failure webhook, map it to the pull request, commit, and branch,
+then let an agent diagnose the failure or rerun the workflow.
 
 ## What you get
 
-- **Webhook inbound** with HMAC-SHA256 verification of the versioned
+- **Webhook inbound:** HMAC-SHA256 verification of the versioned
   `circleci-signature` header over the raw body (highest-version-only, fail
   closed, delivery-`id` dedup).
-- **Normalized CI envelope** for `workflow-completed` and `job-completed`:
+- **Normalized CI envelope:** `workflow-completed` and `job-completed` with
   `provider`, `kind`, `status`, `is_failure`, `repo`, `commit_sha`, `branch`,
   `project_slug`, `workflow_id`, `pipeline_number`, `web_url`, optional `job`,
   `rerun_handle`, and a `triage` shape.
-- **REST API v2 outbound** for rerun-from-failed, cancel, workflow/job/artifact
-  reads, and a raw `api.request` escape hatch (`Circle-Token` auth).
-- **PR-by-SHA resolution** via the optional `github_commit_pulls` helper, since
+- **REST API v2 outbound:** rerun-from-failed, cancel, workflow, job, and artifact
+  reads, plus a raw `api.request` escape hatch using `Circle-Token` auth.
+- **Pull request resolution by SHA:** use the optional `github_commit_pulls` helper because
   CircleCI payloads carry no PR field.
 
-## Trigger recipe — rerun failed workflows from the last failure
+## Trigger recipe: rerun failed workflows from the last failure
 
 ```harn
 import circleci from "harn-circleci-connector"
@@ -42,7 +41,7 @@ trigger ci_failed on circleci {
 }
 ```
 
-## Trigger recipe — diagnose a failed job's artifacts
+## Trigger recipe: diagnose a failed job's artifacts
 
 ```harn
 trigger diagnose_failure on circleci {
@@ -62,7 +61,7 @@ trigger diagnose_failure on circleci {
 }
 ```
 
-## Resolving the PR from a commit SHA
+## Resolve a pull request from a commit SHA
 
 CircleCI does not include a PR number. Resolve it out-of-band:
 
@@ -80,12 +79,12 @@ let pulls = circleci.github_commit_pulls(
 | Secret                              | Used for                                              |
 | ----------------------------------- | ----------------------------------------------------- |
 | `circleci/webhook-secret`           | HMAC key for the `circleci-signature` header          |
-| `circleci/api-token` / `api_token`  | Outbound REST v2 as the `Circle-Token` header         |
+| `circleci/api-token`                 | Outbound REST v2 as the `Circle-Token` header         |
 
-The signing secret is required for inbound webhooks — unsigned or mismatched
+The signing secret is required for inbound webhooks. Unsigned or mismatched
 requests are rejected (fail closed). Configure it in the CircleCI webhook UI.
 
-## Self-managed / custom hosts
+## Custom API hosts
 
 Set `api_base_url` per call (or `CIRCLECI_API_BASE_URL`):
 
@@ -96,4 +95,4 @@ circleci.call("workflow.get", {
 })
 ```
 
-Pass `api_token` per call or set `CIRCLECI_API_TOKEN` / `CIRCLE_TOKEN`.
+Pass `api_token` per call, or set `CIRCLECI_API_TOKEN` or `CIRCLE_TOKEN`.
