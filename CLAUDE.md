@@ -9,7 +9,7 @@ Shared Harn connector authoring rules live in the canonical guide:
 Keep this file limited to provider-specific notes and local hazards. Add shared connector guidance
 to the Harn guide first.
 
-## Provider Notes
+## Provider notes
 
 - `circleci-signature` is a comma-separated, versioned list (`v1=<hex>`). `v1` is the HMAC-SHA256
   hex digest of the **raw request body** keyed by the configured webhook signing secret. Recompute
