@@ -10,7 +10,15 @@ and let an agent diagnose the failure or rerun the workflow.
 ## Install
 
 ```sh
-harn add harn-circleci-connector
+harn add github.com/burin-labs/harn-circleci-connector@main
+```
+
+No release tag is published yet. Use a path checkout for local multi-repo
+development:
+
+```toml
+[dependencies]
+harn-circleci-connector = { path = "../harn-circleci-connector" }
 ```
 
 Set up secrets per binding:
