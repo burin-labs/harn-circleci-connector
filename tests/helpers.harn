@@ -54,7 +54,9 @@ pub fn assert_circleci_interface() {
   assert_eq(get_requires_approval, false, "workflow.get does not require approval")
   const initialized = init({signing_secret: "test-secret"})
   assert(initialized.initialized, "init stores state")
-  const activated = activate([{id: "primary", path: "/circleci/events", secrets: {signing_secret: "test-secret"}}])
+  const activated = activate(
+    [{id: "primary", path: "/circleci/events", secrets: {signing_secret: "test-secret"}}],
+  )
   assert_eq(activated.bindings, 1, "activate counts bindings")
 }
 

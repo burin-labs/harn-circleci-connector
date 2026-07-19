@@ -14,7 +14,9 @@ pipeline default() {
   assert_circleci_interface()
   init({signing_secret: secret})
   // workflow-completed success: full field mapping.
-  const ok = circleci_normalize(fixture_raw("workflow_completed_success", secret, "workflow-completed"))
+  const ok = circleci_normalize(
+    fixture_raw("workflow_completed_success", secret, "workflow-completed"),
+  )
   assert_eq(ok.type, "event", "wf success envelope type")
   assert_eq(ok.event.kind, "workflow-completed", "wf success kind")
   assert_eq(ok.event.signature_status.state, "verified", "wf success verified")
@@ -44,7 +46,9 @@ pipeline default() {
   )
   assert_eq(ok.event.payload.triage.is_failure, false, "wf success triage not failure")
   // workflow-completed failed: failure classification + fork origin repo.
-  const bad = circleci_normalize(fixture_raw("workflow_completed_failed", secret, "workflow-completed"))
+  const bad = circleci_normalize(
+    fixture_raw("workflow_completed_failed", secret, "workflow-completed"),
+  )
   assert_eq(bad.event.payload.is_failure, true, "wf failed is_failure")
   assert_eq(bad.event.payload.status, "failed", "wf failed status")
   assert_eq(bad.event.payload.branch, "feature/login", "wf failed branch")
@@ -92,7 +96,9 @@ pipeline default() {
   assert_eq(wrong_secret.type, "reject", "wrong secret rejects")
   assert_eq(wrong_secret.reject.status, 401, "wrong secret 401")
   // Signature verify: missing signature header is rejected.
-  const missing_sig = circleci_normalize({body_text: body, headers: {"circleci-event-type": "workflow-completed"}})
+  const missing_sig = circleci_normalize(
+    {body_text: body, headers: {"circleci-event-type": "workflow-completed"}},
+  )
   assert_eq(missing_sig.type, "reject", "missing signature rejects")
   assert_eq(missing_sig.reject.status, 401, "missing signature 401")
   // Downgrade defense: only v1 is honored; an unknown high version with a bad
@@ -100,7 +106,10 @@ pipeline default() {
   const downgrade = circleci_normalize(
     {
       body_text: body,
-      headers: {"circleci-signature": "v2=deadbeef, v1=0000", "circleci-event-type": "workflow-completed"},
+      headers: {
+        "circleci-signature": "v2=deadbeef, v1=0000",
+        "circleci-event-type": "workflow-completed",
+      },
     },
   )
   assert_eq(downgrade.type, "reject", "bad v1 with extra version rejects")
@@ -109,7 +118,10 @@ pipeline default() {
   const unsigned = circleci_normalize(
     {
       body_text: body,
-      headers: {"circleci-signature": sign_body(secret, body), "circleci-event-type": "workflow-completed"},
+      headers: {
+        "circleci-signature": sign_body(secret, body),
+        "circleci-event-type": "workflow-completed",
+      },
     },
   )
   assert_eq(unsigned.type, "reject", "fail-closed when no secret configured")
@@ -119,7 +131,10 @@ pipeline default() {
   init({signing_secret: secret})
   const bad_json_body = "{not json"
   const invalid_json = circleci_normalize(
-    {body_text: bad_json_body, headers: circleci_headers(secret, bad_json_body, "workflow-completed")},
+    {
+      body_text: bad_json_body,
+      headers: circleci_headers(secret, bad_json_body, "workflow-completed"),
+    },
   )
   assert_eq(invalid_json.type, "reject", "invalid json rejects")
   assert_eq(invalid_json.reject.status, 400, "invalid json 400")

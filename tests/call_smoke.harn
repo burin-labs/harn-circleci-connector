@@ -13,7 +13,10 @@ pipeline default() {
     base + "/workflow/" + workflow_id + "/rerun",
     {status: 202, body: "{\"workflow_id\":\"" + workflow_id + "\"}"},
   )
-  const rerun = call("workflow.rerun", {api_base_url: base, api_token: token, workflow_id: workflow_id})
+  const rerun = call(
+    "workflow.rerun",
+    {api_base_url: base, api_token: token, workflow_id: workflow_id},
+  )
   assert_eq(rerun.workflow_id, workflow_id, "rerun returns workflow id")
   // workflow.cancel.
   http_mock(
@@ -21,7 +24,10 @@ pipeline default() {
     base + "/workflow/" + workflow_id + "/cancel",
     {status: 202, body: "{\"message\":\"Accepted.\"}"},
   )
-  const cancel = call("workflow.cancel", {api_base_url: base, api_token: token, workflow_id: workflow_id})
+  const cancel = call(
+    "workflow.cancel",
+    {api_base_url: base, api_token: token, workflow_id: workflow_id},
+  )
   assert_eq(cancel.message, "Accepted.", "cancel accepted")
   // workflow.get.
   http_mock(
