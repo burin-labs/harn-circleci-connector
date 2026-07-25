@@ -1,25 +1,7 @@
-# CLAUDE.md - harn-circleci-connector
+# CLAUDE.md
 
-Pure-Harn connector package for CircleCI Cloud (REST API v2 + inbound webhooks).
+See [AGENTS.md](AGENTS.md). It is the canonical guidance for this repo, and it
+links to the shared [connector authoring guide](https://github.com/burin-labs/harn/blob/main/docs/src/connectors/authoring.md).
 
-Shared Harn connector authoring rules are in the
-[connector authoring guide](https://github.com/burin-labs/harn/blob/main/docs/src/connectors/authoring.md).
-
-Keep this file limited to CircleCI-specific notes and local hazards. Put shared connector guidance
-in the Harn guide first.
-
-## Provider Notes
-
-- `circleci-signature` is a comma-separated, versioned list (`v1=<hex>`). `v1` is the HMAC-SHA256
-  hex digest of the **raw request body** keyed by the configured webhook signing secret. Recompute
-  and compare with `constant_time_eq`; verify only the highest known version (downgrade defense).
-- There is no timestamp in the signature, so there is no replay window. Dedup on the top-level `id`
-  delivery UUID instead — CircleCI reuses it on retries.
-- Webhook body `type` is `workflow-completed` or `job-completed`; the `circleci-event-type` header
-  echoes it. A run is a failure when `status` is `failed` or `error` (not `canceled`/`unauthorized`).
-- Payloads carry no reliable PR field. Resolve PRs out-of-band by SHA via the optional
-  `github_commit_pulls` helper (GitHub `/commits/{sha}/pulls`).
-- Outbound REST v2 auth is the `Circle-Token` header (not bearer). Mutating methods
-  (`workflow.rerun`, `workflow.cancel`) are flagged `requires_approval` in `methods()`.
-- Do not add compatibility shims or deprecation aliases in this nascent package; cut over directly
-  when behavior changes.
+This is a regular file rather than a symlink: connector repos are published Harn
+packages, and the package installer rejects symlinks in package content.
