@@ -7,6 +7,8 @@ listing. Part of the Harn connectors program.
 User story: receive a webhook when CI fails, map it to the PR / commit / branch,
 and let an agent diagnose the failure or rerun the workflow.
 
+Package version `0.1.0` supports Harn `>=0.10,<0.11`.
+
 ## Install
 
 ```sh
@@ -27,6 +29,22 @@ Set up secrets per binding:
 | ------------------------- | -------------------------------------------------------- |
 | `circleci/webhook-secret` | Verifies the `circleci-signature` HMAC on inbound hooks  |
 | `circleci/api-token`      | Outbound REST API v2 as the `Circle-Token` header        |
+
+Create the webhook in CircleCI Project Settings with
+`https://<public-host>/webhooks/circleci` as its receiver, select
+workflow-completed and job-completed events, and store the configured secret:
+
+```sh
+harn connect api-key --connector circleci \
+  --secret-id circleci/webhook-secret
+harn connect api-key --connector circleci --secret-id circleci/api-token
+harn connect status --connector circleci --json
+```
+
+The personal API token has the authority of its CircleCI user. Use a dedicated
+user that can access only the required projects. Rotate the webhook secret and
+API token independently: store the replacement, prove one signed failure event
+and one typed workflow read, then revoke the old value.
 
 ## Inbound webhooks
 
@@ -107,5 +125,5 @@ hosts; pass `api_token` per call or set `CIRCLECI_API_TOKEN` / `CIRCLE_TOKEN`.
 Run the package gate:
 
 ```sh
-harn connector test "$(pwd)" --provider circleci
+harn package verify . --provider circleci
 ```
