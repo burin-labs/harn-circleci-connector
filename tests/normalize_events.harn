@@ -1,17 +1,17 @@
 import { init, shutdown } from "../src/lib"
 import { circleci_normalize, fixture_raw } from "./helpers"
 
-pipeline default() {
+pipeline default(harness: Harness) {
   const secret = "test-webhook-secret"
-  shutdown()
-  init({signing_secret: secret})
+  shutdown(harness)
+  init(harness, {signing_secret: secret})
   const cases = [
     ["workflow_completed_success", "workflow-completed", "workflow-completed", "success", false],
     ["workflow_completed_failed", "workflow-completed", "workflow-completed", "failed", true],
     ["job_completed_failed", "job-completed", "job-completed", "failed", true],
   ]
   for [name, header, kind, status, is_failure] in cases {
-    const normalized = circleci_normalize(fixture_raw(name, secret, header))
+    const normalized = circleci_normalize(harness, fixture_raw(harness, name, secret, header))
     assert_eq(normalized.type, "event", name + " envelope type")
     assert_eq(normalized.event.kind, kind, name + " kind")
     assert_eq(normalized.event.signature_status.state, "verified", name + " verified")
@@ -26,5 +26,5 @@ pipeline default() {
       name + " dedupe key",
     )
   }
-  shutdown()
+  shutdown(harness)
 }

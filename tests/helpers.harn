@@ -25,18 +25,18 @@ pub fn circleci_headers(secret, body, event_type) {
 }
 
 /** Read a fixture JSON body from the test fixtures directory. */
-pub fn fixture_body(name) {
-  return harness.fs.read_text(source_dir() + "/fixtures/webhooks/" + name + ".json")
+pub fn fixture_body(harness: Harness, name) {
+  return harness.fs.read_text(harness.fs.source_dir() + "/fixtures/webhooks/" + name + ".json")
 }
 
 /** Build a signed raw inbound envelope from a named fixture. */
-pub fn fixture_raw(name, secret, event_type, extra = nil) {
-  const body = fixture_body(name)
+pub fn fixture_raw(harness: Harness, name, secret, event_type, extra = nil) {
+  const body = fixture_body(harness, name)
   return (extra ?? {}) + {body_text: body, headers: circleci_headers(secret, body, event_type)}
 }
 
-pub fn assert_circleci_interface() {
-  shutdown()
+pub fn assert_circleci_interface(harness: Harness) {
+  shutdown(harness)
   assert_eq(provider_id(), "circleci", "provider id")
   assert_eq(kinds()[0], "webhook", "webhook kind")
   assert_eq(payload_schema().harn_schema_name, "CircleCIEventPayload", "payload schema name")
@@ -52,18 +52,19 @@ pub fn assert_circleci_interface() {
   }
   assert_eq(rerun_requires_approval, true, "workflow.rerun requires approval")
   assert_eq(get_requires_approval, false, "workflow.get does not require approval")
-  const initialized = init({signing_secret: "test-secret"})
+  const initialized = init(harness, {signing_secret: "test-secret"})
   assert(initialized.initialized, "init stores state")
   const activated = activate(
+    harness,
     [{id: "primary", path: "/circleci/events", secrets: {signing_secret: "test-secret"}}],
   )
   assert_eq(activated.bindings, 1, "activate counts bindings")
 }
 
-pub fn circleci_call(method, args) {
-  return call(method, args)
+pub fn circleci_call(harness: Harness, method, args) {
+  return call(harness, method, args)
 }
 
-pub fn circleci_normalize(raw) {
-  return normalize_inbound(raw)
+pub fn circleci_normalize(harness: Harness, raw) {
+  return normalize_inbound(harness, raw)
 }
