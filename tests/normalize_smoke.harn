@@ -9,14 +9,14 @@ import {
 } from "./helpers"
 
 @complexity(allow)
-pipeline default(harness: Harness) {
+pipeline test_normalize_smoke(harness: Harness) {
   const secret = "test-webhook-secret"
   assert_circleci_interface(harness)
   init(harness, {signing_secret: secret})
   // workflow-completed success: full field mapping.
   const ok = circleci_normalize(
     harness,
-    fixture_raw(harness, "workflow_completed_success", secret, "workflow-completed"),
+    fixture_raw(harness.fs, "workflow_completed_success", secret, "workflow-completed"),
   )
   assert_eq(ok.type, "event", "wf success envelope type")
   assert_eq(ok.event.kind, "workflow-completed", "wf success kind")
@@ -49,7 +49,7 @@ pipeline default(harness: Harness) {
   // workflow-completed failed: failure classification + fork origin repo.
   const bad = circleci_normalize(
     harness,
-    fixture_raw(harness, "workflow_completed_failed", secret, "workflow-completed"),
+    fixture_raw(harness.fs, "workflow_completed_failed", secret, "workflow-completed"),
   )
   assert_eq(bad.event.payload.is_failure, true, "wf failed is_failure")
   assert_eq(bad.event.payload.status, "failed", "wf failed status")
@@ -73,7 +73,7 @@ pipeline default(harness: Harness) {
   // job-completed failed: job sub-shape present.
   const job = circleci_normalize(
     harness,
-    fixture_raw(harness, "job_completed_failed", secret, "job-completed"),
+    fixture_raw(harness.fs, "job_completed_failed", secret, "job-completed"),
   )
   assert_eq(job.event.kind, "job-completed", "job kind")
   assert_eq(job.event.payload.is_failure, true, "job failed is_failure")
@@ -87,7 +87,7 @@ pipeline default(harness: Harness) {
   )
   assert_eq(job.event.dedupe_key, "circleci:job-completed:delivery-job-failed-1", "job dedupe id")
   // Signature verify: tampered body is rejected (401).
-  const body = fixture_body(harness, "workflow_completed_success")
+  const body = fixture_body(harness.fs, "workflow_completed_success")
   const tampered_body = replace(body, "\"main\"", "\"evil\"")
   const tampered = circleci_normalize(
     harness,
