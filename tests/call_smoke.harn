@@ -1,7 +1,7 @@
 import { call } from "../src/lib"
 
 @complexity(allow)
-pipeline default(harness: Harness) {
+pipeline test_call_smoke(harness: Harness) {
   harness.net.egress_policy({allow: ["circleci-api.test"], default: "deny"})
   harness.testing.http_mock_clear()
   const base = "https://circleci-api.test/api/v2"

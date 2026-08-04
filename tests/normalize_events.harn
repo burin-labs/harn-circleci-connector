@@ -1,7 +1,7 @@
 import { init, shutdown } from "../src/lib"
 import { circleci_normalize, fixture_raw } from "./helpers"
 
-pipeline default(harness: Harness) {
+pipeline test_normalize_events(harness: Harness) {
   const secret = "test-webhook-secret"
   shutdown(harness)
   init(harness, {signing_secret: secret})
@@ -11,7 +11,7 @@ pipeline default(harness: Harness) {
     ["job_completed_failed", "job-completed", "job-completed", "failed", true],
   ]
   for [name, header, kind, status, is_failure] in cases {
-    const normalized = circleci_normalize(harness, fixture_raw(harness, name, secret, header))
+    const normalized = circleci_normalize(harness, fixture_raw(harness.fs, name, secret, header))
     assert_eq(normalized.type, "event", name + " envelope type")
     assert_eq(normalized.event.kind, kind, name + " kind")
     assert_eq(normalized.event.signature_status.state, "verified", name + " verified")
