@@ -329,8 +329,8 @@ pub fn github_commit_pulls(
   return unwrap(parsed)
 }
 
-fn __state(harness: HarnessRuntime) {
-  return harness.store_get(CIRCLECI_STATE_KEY)
+fn __state(runtime: HarnessRuntime) {
+  return runtime.store_get(CIRCLECI_STATE_KEY)
     ?? {
     active: false,
     bindings: {},
@@ -339,8 +339,8 @@ fn __state(harness: HarnessRuntime) {
   }
 }
 
-fn __set_state(harness: HarnessRuntime, state) {
-  harness.store_set(CIRCLECI_STATE_KEY, state)
+fn __set_state(runtime: HarnessRuntime, state) {
+  runtime.store_set(CIRCLECI_STATE_KEY, state)
   return state
 }
 
@@ -422,13 +422,13 @@ fn __signing_secret(harness: {secrets: HarnessSecrets, runtime: HarnessRuntime},
   return nil
 }
 
-fn __signing_secret_id(harness: HarnessRuntime, raw) {
+fn __signing_secret_id(runtime: HarnessRuntime, raw) {
   const metadata = raw?.metadata ?? {}
   const id = metadata?.secret_ids?.signing_secret ?? metadata?.config?.secret_ids?.signing_secret
   if id != nil && trim(to_string(id)) != "" {
     return to_string(id)
   }
-  const bindings = __state(harness).bindings ?? {}
+  const bindings = __state(runtime).bindings ?? {}
   const binding_id = metadata?.binding_id ?? raw?.binding_id
   if binding_id != nil {
     const binding = bindings.get(binding_id)
@@ -644,20 +644,17 @@ fn __occurred_at(event_type, payload) {
 }
 
 @complexity(allow)
-fn __outbound_config(harness: HarnessEnv, args) {
+fn __outbound_config(env: HarnessEnv, args) {
   const api_base_url = args?.api_base_url
-    ?? harness.get_or(
-    "CIRCLECI_API_BASE_URL",
-    CIRCLECI_API_BASE_URL,
-  )
+    ?? env.get_or("CIRCLECI_API_BASE_URL", CIRCLECI_API_BASE_URL)
   const base_check = __validate_api_base_url(api_base_url)
   if is_err(base_check) {
     return base_check
   }
   const api_token = args?.api_token ?? args?.token ?? args?.circle_token ?? args?.secrets?.api_token
-    ?? harness
+    ?? env
     .get("CIRCLECI_API_TOKEN")
-    ?? harness.get("CIRCLE_TOKEN")
+    ?? env.get("CIRCLE_TOKEN")
   if api_token == nil || trim(to_string(api_token)) == "" {
     return __err("missing_token", "circleci connector requires api_token (Circle-Token)")
   }
@@ -874,7 +871,7 @@ fn __circleci_json(harness: {clock: HarnessClock, net: HarnessNet}, method, url,
 }
 
 @complexity(allow)
-fn __maybe_wait_for_rate_limit(harness: HarnessClock, response) {
+fn __maybe_wait_for_rate_limit(clock: HarnessClock, response) {
   const remaining = __header(response.headers ?? {}, "x-ratelimit-remaining")
   if remaining == nil || trim(to_string(remaining)) != "0" {
     return Ok(false)
@@ -894,7 +891,7 @@ fn __maybe_wait_for_rate_limit(harness: HarnessClock, response) {
     return __err("rate_limited", "circleci API retry-after is more than 60 seconds away")
   }
   if wait_seconds > 0 {
-    harness.sleep_ms(wait_seconds * 1000)
+    clock.sleep_ms(wait_seconds * 1000)
   }
   return Ok(true)
 }

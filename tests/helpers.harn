@@ -25,13 +25,13 @@ pub fn circleci_headers(secret, body, event_type) {
 }
 
 /** Read a fixture JSON body from the test fixtures directory. */
-pub fn fixture_body(harness: HarnessFs, name) {
-  return harness.read_text(harness.source_dir() + "/fixtures/webhooks/" + name + ".json")
+pub fn fixture_body(fs: HarnessFs, name) {
+  return fs.read_text(fs.source_dir() + "/fixtures/webhooks/" + name + ".json")
 }
 
 /** Build a signed raw inbound envelope from a named fixture. */
-pub fn fixture_raw(harness: HarnessFs, name, secret, event_type, extra = nil) {
-  const body = fixture_body(harness, name)
+pub fn fixture_raw(fs: HarnessFs, name, secret, event_type, extra = nil) {
+  const body = fixture_body(fs, name)
   return (extra ?? {}) + {body_text: body, headers: circleci_headers(secret, body, event_type)}
 }
 
