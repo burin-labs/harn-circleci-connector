@@ -87,6 +87,9 @@ redaction = ["request_body", "response_body", "error_body"]
 auth_type = "api-key"
 flow = "api-key"
 required_secrets = ["circleci/webhook-secret", "circleci/api-token"]
+credential_environment = [
+  { secret = "circleci/api-token", environment_names = ["CIRCLE_TOKEN"] },
+]
 setup_command = ["harn", "connect", "circleci"]
 validation_command = ["harn", "connect", "status", "--connector", "circleci", "--json"]
 

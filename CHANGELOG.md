@@ -7,6 +7,10 @@ this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 
 ### Added
 
+- `credential_environment` binds `circleci/api-token` to the
+  `CIRCLE_TOKEN` environment variable, so a host that resolves
+  connector credentials from the process environment can find the
+  outbound CircleCI token instead of reporting it missing.
 - Connector contract v2 with product-facing service metadata: the
   manifest now declares all seven outbound CircleCI operations
   (`workflow.get`, `workflow.jobs`, `job.get`, `artifacts.list`,
