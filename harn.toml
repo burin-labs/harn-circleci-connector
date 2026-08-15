@@ -14,6 +14,75 @@ id = "circleci"
 connector = { harn = "src/lib.harn" }
 capabilities = ["webhook", "rate_limit", "pagination"]
 
+[providers.service]
+name = "CircleCI"
+description = "Inspects CircleCI workflows, jobs, and artifacts, and reruns failed work after review."
+
+[[providers.service.operations]]
+id = "workflow.get"
+capability = "workflows.read"
+purpose = "Read the current state of one CircleCI workflow."
+effect = "read"
+environments = ["live"]
+evidence = ["current_provider_state"]
+redaction = ["error_body"]
+
+[[providers.service.operations]]
+id = "workflow.jobs"
+capability = "workflows.read"
+purpose = "List the jobs in one CircleCI workflow to find the failing one."
+effect = "read"
+environments = ["live"]
+evidence = ["current_provider_state"]
+redaction = ["error_body"]
+
+[[providers.service.operations]]
+id = "job.get"
+capability = "jobs.read"
+purpose = "Read the current state of one CircleCI job."
+effect = "read"
+environments = ["live"]
+evidence = ["current_provider_state"]
+redaction = ["error_body"]
+
+[[providers.service.operations]]
+id = "artifacts.list"
+capability = "artifacts.read"
+purpose = "List the artifacts one CircleCI job produced."
+effect = "read"
+environments = ["live"]
+evidence = ["citation", "current_provider_state"]
+redaction = ["error_body"]
+
+[[providers.service.operations]]
+id = "workflow.rerun"
+capability = "workflows.write"
+purpose = "Rerun the exact CircleCI workflow reviewed by the user."
+effect = "consequential"
+environments = ["live"]
+evidence = ["user_confirmation", "current_provider_state"]
+reconciliation = "supported"
+redaction = ["request_body", "response_body", "error_body"]
+
+[[providers.service.operations]]
+id = "workflow.cancel"
+capability = "workflows.write"
+purpose = "Cancel the exact CircleCI workflow reviewed by the user."
+effect = "consequential"
+environments = ["live"]
+evidence = ["user_confirmation", "current_provider_state"]
+reconciliation = "supported"
+redaction = ["request_body", "response_body", "error_body"]
+
+[[providers.service.operations]]
+id = "api.request"
+capability = "api.request"
+purpose = "Send the reviewed request to a CircleCI API path this connector does not model."
+effect = "consequential"
+environments = ["live"]
+evidence = ["user_confirmation", "current_provider_state"]
+redaction = ["request_body", "response_body", "error_body"]
+
 [providers.setup]
 auth_type = "api-key"
 flow = "api-key"
@@ -40,7 +109,7 @@ inaccessible_resource = "Confirm the token can reach the CircleCI project slug (
 transient_provider_outage = "Retry after the CircleCI API and webhook delivery endpoints are healthy."
 
 [connector_contract]
-version = 1
+version = 2
 
 [[connector_contract.fixtures]]
 provider = "circleci"

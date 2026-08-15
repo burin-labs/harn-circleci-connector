@@ -7,6 +7,13 @@ this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 
 ### Added
 
+- Connector contract v2 with product-facing service metadata: the
+  manifest now declares all seven outbound CircleCI operations
+  (`workflow.get`, `workflow.jobs`, `job.get`, `artifacts.list`,
+  `workflow.rerun`, `workflow.cancel`, `api.request`) with their
+  capability, purpose, effect, evidence, and redaction semantics.
+  `api.request` is declared consequential because the caller chooses the
+  verb, so it cannot be projected as read-only.
 - Initial pure-Harn CircleCI connector (connector interface, payload
   schema, lifecycle functions).
 - `normalize_inbound` with HMAC-SHA256 signature verification against the
