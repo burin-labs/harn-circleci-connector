@@ -67,10 +67,12 @@ CircleCI does not include a PR number. Resolve it out-of-band:
 
 ```harn
 let pulls = circleci.github_commit_pulls(
-  "acme",
-  "widgets",
-  event.payload.commit_sha,
-  env("GITHUB_TOKEN"),
+  {
+    owner: "acme",
+    repo: "widgets",
+    sha: event.payload.commit_sha,
+    github_token: env("GITHUB_TOKEN"),
+  },
 )
 ```
 

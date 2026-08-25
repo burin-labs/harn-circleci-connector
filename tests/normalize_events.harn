@@ -1,16 +1,36 @@
 import { init, shutdown } from "../src/lib"
 import { circleci_normalize, fixture_raw } from "./helpers"
 
+type NormalizeCase = {name: string, header: string, kind: string, status: string, is_failure: bool}
+
 pipeline test_normalize_events(harness: Harness) {
   const secret = "test-webhook-secret"
   shutdown(harness)
   init(harness, {signing_secret: secret})
-  const cases = [
-    ["workflow_completed_success", "workflow-completed", "workflow-completed", "success", false],
-    ["workflow_completed_failed", "workflow-completed", "workflow-completed", "failed", true],
-    ["job_completed_failed", "job-completed", "job-completed", "failed", true],
+  const cases: list<NormalizeCase> = [
+    {
+      name: "workflow_completed_success",
+      header: "workflow-completed",
+      kind: "workflow-completed",
+      status: "success",
+      is_failure: false,
+    },
+    {
+      name: "workflow_completed_failed",
+      header: "workflow-completed",
+      kind: "workflow-completed",
+      status: "failed",
+      is_failure: true,
+    },
+    {
+      name: "job_completed_failed",
+      header: "job-completed",
+      kind: "job-completed",
+      status: "failed",
+      is_failure: true,
+    },
   ]
-  for [name, header, kind, status, is_failure] in cases {
+  for {name, header, kind, status, is_failure} in cases {
     const normalized = circleci_normalize(harness, fixture_raw(harness.fs, name, secret, header))
     assert_eq(normalized.type, "event", name + " envelope type")
     assert_eq(normalized.event.kind, kind, name + " kind")

@@ -5,6 +5,17 @@ this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 
 ## [Unreleased]
 
+### Changed
+
+- Harn source boundaries now use explicit parameter types, and
+  `github_commit_pulls` takes one named request record instead of four
+  easy-to-swap strings.
+
+### Fixed
+
+- Strict package verification now compiles and runs the connector test suite
+  when the verifier has already installed its own egress policy.
+
 ### Added
 
 - `credential_environment` binds `circleci/api-token` to the

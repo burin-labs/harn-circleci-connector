@@ -76,7 +76,12 @@ whose event payload is a normalized CI shape:
 CircleCI payloads carry no reliable PR field. Resolve PRs out-of-band by SHA:
 
 ```harn
-let pulls = circleci.github_commit_pulls("acme", "widgets", event.payload.commit_sha, github_token)
+let pulls = circleci.github_commit_pulls({
+  owner: "acme",
+  repo: "widgets",
+  sha: event.payload.commit_sha,
+  github_token: github_token,
+})
 ```
 
 ### Trigger recipe: rerun failed workflows from the last failure

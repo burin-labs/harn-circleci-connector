@@ -11,12 +11,12 @@ import {
 } from "../src/lib"
 
 /** Build a `circleci-signature` header value for a raw body + secret. */
-pub fn sign_body(secret, body) {
+pub fn sign_body(secret: string, body: string) {
   return "v1=" + hmac_sha256(to_string(secret), body)
 }
 
 /** Build inbound webhook headers, signing the body with the given secret. */
-pub fn circleci_headers(secret, body, event_type) {
+pub fn circleci_headers(secret: string, body: string, event_type: string) {
   return {
     "circleci-event-type": event_type,
     "circleci-signature": sign_body(secret, body),
@@ -25,12 +25,18 @@ pub fn circleci_headers(secret, body, event_type) {
 }
 
 /** Read a fixture JSON body from the test fixtures directory. */
-pub fn fixture_body(fs: HarnessFs, name) {
+pub fn fixture_body(fs: HarnessFs, name: string) {
   return fs.read_text(fs.source_dir() + "/fixtures/webhooks/" + name + ".json")
 }
 
 /** Build a signed raw inbound envelope from a named fixture. */
-pub fn fixture_raw(fs: HarnessFs, name, secret, event_type, extra = nil) {
+pub fn fixture_raw(
+  fs: HarnessFs,
+  name: string,
+  secret: string,
+  event_type: string,
+  extra: dict? = nil,
+) {
   const body = fixture_body(fs, name)
   return (extra ?? {}) + {body_text: body, headers: circleci_headers(secret, body, event_type)}
 }
@@ -61,11 +67,11 @@ pub fn assert_circleci_interface(harness: Harness) {
   expect_eq(activated.bindings, 1, "activate counts bindings")
 }
 
-pub fn circleci_call(harness: Harness, method, args) {
-  return call(harness, method, args)
+pub fn circleci_call(harness: Harness, method: string, args: dict?) {
+  return call(harness, method, args ?? {})
 }
 
-pub fn circleci_normalize(harness: Harness, raw) {
+pub fn circleci_normalize(harness: Harness, raw: dict) {
   return normalize_inbound(harness, raw)
 }
 
@@ -73,12 +79,12 @@ pub fn circleci_normalize(harness: Harness, raw) {
  * Require that a smoke-test condition holds. Helper `fn`s are not test
  * pipelines, so `assert` does not belong here (HARN-LNT-025).
  */
-fn expect(condition, message = "expectation failed") {
+fn expect(condition: unknown, message: string = "expectation failed") {
   require condition, message
 }
 
 /** Require that two smoke-test values are equal, reporting both on failure. */
-fn expect_eq(actual, expected, message = "values differ") {
+fn expect_eq(actual: unknown, expected: unknown, message: string = "values differ") {
   require actual == expected,
     message + ": expected " + to_string(expected) + ", got "
     + to_string(actual)
