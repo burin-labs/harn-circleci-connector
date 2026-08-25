@@ -81,7 +81,5 @@ fn expect(condition, message = "expectation failed") {
 fn expect_eq(actual, expected, message = "values differ") {
   require actual == expected,
     message + ": expected " + to_string(expected) + ", got "
-    + to_string(
-    actual,
-  )
+    + to_string(actual)
 }
