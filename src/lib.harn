@@ -214,9 +214,7 @@ pub fn call(harness: Harness, method, args = {}) {
       __circleci_api_url(
         cfg.api_base_url,
         "/workflow/" + url_encode(to_string(args?.workflow_id ?? "")) + "/job"
-          + __pagination_query(
-          args,
-        ),
+          + __pagination_query(args),
       ),
       nil,
       cfg,
@@ -229,9 +227,7 @@ pub fn call(harness: Harness, method, args = {}) {
       __circleci_api_url(
         cfg.api_base_url,
         "/project/" + __project_slug_path(args) + "/job/"
-          + url_encode(
-          to_string(args?.job_number ?? ""),
-        ),
+          + url_encode(to_string(args?.job_number ?? "")),
       ),
       nil,
       cfg,
@@ -290,9 +286,7 @@ pub fn github_commit_pulls(
   const url = __circleci_api_url(
     base,
     "/repos/" + url_encode(to_string(owner)) + "/" + url_encode(to_string(repo)) + "/commits/"
-      + url_encode(
-      to_string(sha),
-    )
+      + url_encode(to_string(sha))
       + "/pulls",
   )
   const response_result = try {
@@ -316,8 +310,7 @@ pub fn github_commit_pulls(
     return __err(
       "transport",
       "github commit pulls request failed with status " + to_string(response.status) + ": "
-        + response
-        .body,
+        + response.body,
     )
   }
   const parsed = try {
@@ -331,12 +324,7 @@ pub fn github_commit_pulls(
 
 fn __state(runtime: HarnessRuntime) {
   return runtime.store_get(CIRCLECI_STATE_KEY)
-    ?? {
-    active: false,
-    bindings: {},
-    ctx: {},
-    initialized: false,
-  }
+    ?? {active: false, bindings: {}, ctx: {}, initialized: false}
 }
 
 fn __set_state(runtime: HarnessRuntime, state) {
@@ -364,7 +352,7 @@ fn __reject_err(err) {
   const message = err?.message ?? "request rejected"
   const status = if code == "invalid_signature" || code == "missing_signature"
     || code
-    == "missing_secret" {
+      == "missing_secret" {
     401
   } else {
     400
@@ -401,8 +389,7 @@ fn __signing_secret(harness: {secrets: HarnessSecrets, runtime: HarnessRuntime},
   if binding_id != nil {
     const binding = bindings.get(binding_id)
     const binding_secret = binding?.signing_secret ?? binding?.secrets?.signing_secret
-      ?? binding
-      ?.config?.signing_secret
+      ?? binding?.config?.signing_secret
     if binding_secret != nil && trim(to_string(binding_secret)) != "" {
       return to_string(binding_secret)
     }
@@ -433,8 +420,7 @@ fn __signing_secret_id(runtime: HarnessRuntime, raw) {
   if binding_id != nil {
     const binding = bindings.get(binding_id)
     const bid = binding?.signing_secret_id ?? binding?.secrets?.signing_secret_id
-      ?? binding?.config
-      ?.secret_ids?.signing_secret
+      ?? binding?.config?.secret_ids?.signing_secret
     if bid != nil && trim(to_string(bid)) != "" {
       return to_string(bid)
     }
@@ -629,9 +615,7 @@ fn __dedupe_key(event_type, payload, workflow_id) {
   }
   if event_type == "job-completed" {
     return "circleci:job-completed:" + to_string(workflow_id ?? "unknown") + ":"
-      + to_string(
-      payload?.job?.id ?? payload?.job?.number ?? "unknown",
-    )
+      + to_string(payload?.job?.id ?? payload?.job?.number ?? "unknown")
   }
   return "circleci:workflow-completed:" + to_string(workflow_id ?? "unknown")
 }
@@ -652,8 +636,7 @@ fn __outbound_config(env: HarnessEnv, args) {
     return base_check
   }
   const api_token = args?.api_token ?? args?.token ?? args?.circle_token ?? args?.secrets?.api_token
-    ?? env
-    .get("CIRCLECI_API_TOKEN")
+    ?? env.get("CIRCLECI_API_TOKEN")
     ?? env.get("CIRCLE_TOKEN")
   if api_token == nil || trim(to_string(api_token)) == "" {
     return __err("missing_token", "circleci connector requires api_token (Circle-Token)")
@@ -771,10 +754,7 @@ fn __is_disallowed_host(host_lc) {
     return true
   }
   if ends_with(host_lc, ".localhost") || ends_with(host_lc, ".local")
-    || ends_with(
-    host_lc,
-    ".internal",
-  ) {
+    || ends_with(host_lc, ".internal") {
     return true
   }
   if host_lc == "::1" || host_lc == "0:0:0:0:0:0:0:1" {
