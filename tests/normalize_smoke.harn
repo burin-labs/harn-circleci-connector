@@ -160,6 +160,6 @@ pipeline test_normalize_smoke(harness: Harness) {
   shutdown(harness)
 }
 
-fn unwrap_json(text) {
+fn unwrap_json(text: string?) {
   return unwrap(json_parse(text))
 }
