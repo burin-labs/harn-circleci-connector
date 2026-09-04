@@ -1,5 +1,5 @@
 import { init, shutdown } from "../src/lib"
-import { circleci_normalize, fixture_raw } from "./helpers"
+import { circleci_normalize, fixture_raw } from "../testdata/helpers"
 
 type NormalizeCase = {name: string, header: string, kind: string, status: string, is_failure: bool}
 

@@ -6,7 +6,7 @@ import {
   fixture_body,
   fixture_raw,
   sign_body,
-} from "./helpers"
+} from "../testdata/helpers"
 
 @complexity(allow)
 pipeline test_normalize_smoke(harness: Harness) {
