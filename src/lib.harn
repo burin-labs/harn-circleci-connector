@@ -1,6 +1,11 @@
+import { connector_http_json } from "std/connectors/http"
+import { connector_lifecycle } from "std/connectors/shared"
+
 const CIRCLECI_PROVIDER_ID = "circleci"
 
 const CIRCLECI_STATE_KEY = "harn-circleci-connector.state"
+
+const lifecycle = connector_lifecycle(CIRCLECI_PROVIDER_ID, CIRCLECI_STATE_KEY)
 
 const CIRCLECI_API_BASE_URL = "https://circleci.com/api/v2"
 
@@ -74,39 +79,22 @@ pub fn payload_schema() {
 
 /** Initialize connector state with orchestrator context. */
 pub fn init(harness: Harness, ctx: dict? = nil) {
-  const next = __state(harness.runtime) + {initialized: true, ctx: ctx ?? {}}
-  __set_state(harness.runtime, next)
-  return next
+  return lifecycle.init(harness.runtime, ctx)
 }
 
 /** Activate webhook bindings and reject duplicate configured paths. */
 pub fn activate(harness: Harness, bindings: list<dict> = []) {
-  let by_id = {}
-  let seen_paths = {}
-  for binding in bindings ?? [] {
-    const binding_id = binding?.binding_id ?? binding?.id
-      ?? ("binding-" + to_string(len(by_id.keys())))
-    const path = binding?.path ?? binding?.match?.path
-    if path != nil && path != "" {
-      if seen_paths.get(path) {
-        return __err(
-          "activation",
-          "circleci connector path `" + path + "` is configured by multiple bindings",
-        )
-      }
-      seen_paths[path] = true
-    }
-    by_id[binding_id] = binding + {binding_id: binding_id}
+  const result = lifecycle.activate(harness.runtime, bindings)
+  return if is_err(result) {
+    result
+  } else {
+    result + {kind: "webhook"}
   }
-  const next = __state(harness.runtime) + {active: true, bindings: by_id}
-  __set_state(harness.runtime, next)
-  return {bindings: len(by_id.keys()), kind: "webhook", provider: CIRCLECI_PROVIDER_ID}
 }
 
 /** Clear connector lifecycle state. */
 pub fn shutdown(harness: Harness) {
-  harness.runtime.store_delete(CIRCLECI_STATE_KEY)
-  return {active: false, provider: CIRCLECI_PROVIDER_ID}
+  return lifecycle.shutdown(harness.runtime)
 }
 
 /**
@@ -324,13 +312,7 @@ pub fn github_commit_pulls(
 }
 
 fn __state(runtime: HarnessRuntime) {
-  return runtime.store_get(CIRCLECI_STATE_KEY)
-    ?? {active: false, bindings: {}, ctx: {}, initialized: false}
-}
-
-fn __set_state(runtime: HarnessRuntime, state: dict) {
-  runtime.store_set(CIRCLECI_STATE_KEY, state)
-  return state
+  return lifecycle.state(runtime)
 }
 
 fn __err(code: string, message: string) {
@@ -702,14 +684,13 @@ fn __validate_api_base_url(api_base_url: string?) {
   if !starts_with(lowercase(url), "https://") {
     return __err("invalid_api_base_url", "api_base_url must use https:// scheme")
   }
-  const after_scheme = url[8:len(url)]
-  const slash_idx = __index_of(after_scheme, "/")
-  const host_port = if slash_idx >= 0 {
-    after_scheme[0:slash_idx]
-  } else {
-    after_scheme
+  const parsed = try {
+    url_parse(url)
   }
-  const host = __strip_port(host_port)
+  if is_err(parsed) {
+    return __err("invalid_api_base_url", "api_base_url is not a valid URL")
+  }
+  const host = replace(replace(to_string(unwrap(parsed).host ?? ""), "[", ""), "]", "")
   if host == "" {
     return __err("invalid_api_base_url", "api_base_url is missing a host")
   }
@@ -722,37 +703,6 @@ fn __validate_api_base_url(api_base_url: string?) {
     )
   }
   return Ok(true)
-}
-
-fn __strip_port(host_port: string) {
-  if starts_with(host_port, "[") {
-    const close = __index_of(host_port, "]")
-    if close >= 0 {
-      return host_port[1:close]
-    }
-    return host_port
-  }
-  const colon = __index_of(host_port, ":")
-  if colon >= 0 {
-    return host_port[0:colon]
-  }
-  return host_port
-}
-
-fn __index_of(text: string, needle: string) {
-  const n = len(text)
-  const m = len(needle)
-  if m == 0 {
-    return 0
-  }
-  let i = 0
-  while i + m <= n {
-    if text[i:i + m] == needle {
-      return i
-    }
-    i = i + 1
-  }
-  return -1
 }
 
 @complexity(allow)
@@ -774,7 +724,7 @@ fn __is_disallowed_host(host_lc: string) {
   }
   if starts_with(host_lc, "172.") {
     const rest = host_lc[4:len(host_lc)]
-    const dot = __index_of(rest, ".")
+    const dot = rest.index_of(".") ?? -1
     if dot > 0 {
       const octet_str = rest[0:dot]
       const parsed = try {
@@ -812,79 +762,38 @@ fn __circleci_json(
 ) {
   let options = {
     headers: {Accept: "application/json", "Circle-Token": cfg.api_token},
-    retry: {backoff_ms: 0, max: 0},
+    retry: {max_attempts: 2, base_ms: 0, cap_ms: 60000, retry_on: [429, 503]},
+    quota: {
+      remaining_header: "x-ratelimit-remaining",
+      reset_header: "retry-after",
+      reset_is_epoch: false,
+    },
   }
   if body != nil {
     options["body"] = json_stringify(body)
     options.headers["Content-Type"] = "application/json"
   }
-  let retried_rate_limit = false
-  while true {
-    const response_result = try {
-      harness.net.request(method, url, options)
+  const response = connector_http_json(harness.clock, harness.net, method, url, options)
+  if !response.ok {
+    const code = {
+      auth: "unauthorized",
+      permission: "unauthorized",
+      rate_limit: "rate_limited",
+      overloaded: "rate_limited",
+      invalid_json: "invalid_response",
     }
-    if is_err(response_result) {
-      return __err("transport", to_string(unwrap_err(response_result)))
-    }
-    const response = unwrap(response_result)
-    const limited = __maybe_wait_for_rate_limit(harness.clock, response)
-    if is_err(limited) {
-      return limited
-    }
-    if (response.status == 429 || response.status == 503) && unwrap(limited)
-      && !retried_rate_limit {
-      retried_rate_limit = true
-      continue
-    }
-    if response.status < 200 || response.status >= 300 {
-      const code = if response.status == 429 || response.status == 503 {
-        "rate_limited"
-      } else if response.status == 401 || response.status == 403 {
-        "unauthorized"
-      } else {
-        "transport"
-      }
-      return __err(
-        code,
-        "circleci API request failed with status " + to_string(response.status) + ": "
-          + response.body,
-      )
-    }
-    if trim(response.body ?? "") == "" {
-      return {body: "", headers: response.headers, status: response.status}
-    }
-    const parsed = try {
-      json_parse(response.body)
-    }
-    if is_err(parsed) {
-      return __err("invalid_response", "CircleCI API returned invalid JSON")
-    }
-    return unwrap(parsed)
+      .get(response.error.category)
+      ?? "transport"
+    return __err(
+      code,
+      response.error.message
+        ?? ("circleci API request failed: " + to_string(response.status ?? "") + ": "
+          + to_string(response.error.body ?? response.error.category)),
+    )
   }
-}
-
-@complexity(allow)
-fn __maybe_wait_for_rate_limit(clock: HarnessClock, response: dict) {
-  const remaining = __header(response.headers ?? {}, "x-ratelimit-remaining")
-  if remaining == nil || trim(to_string(remaining)) != "0" {
-    return Ok(false)
+  return if trim(response.body) == "" {
+    {status: response.status, headers: response.headers, body: ""}
+  } else {
+    response.json
   }
-  const retry_after = __header(response.headers ?? {}, "retry-after")
-  if retry_after == nil || trim(to_string(retry_after)) == "" {
-    return Ok(true)
-  }
-  const parsed_retry = try {
-    to_int(retry_after)
-  }
-  if is_err(parsed_retry) {
-    return Ok(true)
-  }
-  const wait_seconds = unwrap(parsed_retry)
-  if wait_seconds > 60 {
-    return __err("rate_limited", "circleci API retry-after is more than 60 seconds away")
-  }
-  if wait_seconds > 0 {
-    clock.sleep_ms(wait_seconds * 1000)
-  }
-  return Ok(true)
 }
