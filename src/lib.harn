@@ -126,7 +126,7 @@ pub fn normalize_inbound(harness: Harness, raw: dict) {
   }
   const headers = raw?.headers ?? {}
   const verified = __verify_circleci_signature(
-    {secrets: harness.secrets, runtime: harness.runtime},
+    pick(harness, ["secrets", "runtime"]),
     raw,
     headers,
     body_text,
@@ -173,7 +173,7 @@ pub fn call(harness: Harness, method: string, args: dict = {}) {
   const cfg = unwrap(config)
   if method == "workflow.rerun" {
     return __circleci_json(
-      {clock: harness.clock, net: harness.net},
+      pick(harness, ["clock", "net"]),
       "POST",
       __circleci_api_url(
         cfg.api_base_url,
@@ -185,7 +185,7 @@ pub fn call(harness: Harness, method: string, args: dict = {}) {
   }
   if method == "workflow.cancel" {
     return __circleci_json(
-      {clock: harness.clock, net: harness.net},
+      pick(harness, ["clock", "net"]),
       "POST",
       __circleci_api_url(
         cfg.api_base_url,
@@ -197,7 +197,7 @@ pub fn call(harness: Harness, method: string, args: dict = {}) {
   }
   if method == "workflow.get" {
     return __circleci_json(
-      {clock: harness.clock, net: harness.net},
+      pick(harness, ["clock", "net"]),
       "GET",
       __circleci_api_url(
         cfg.api_base_url,
@@ -209,7 +209,7 @@ pub fn call(harness: Harness, method: string, args: dict = {}) {
   }
   if method == "workflow.jobs" {
     return __circleci_json(
-      {clock: harness.clock, net: harness.net},
+      pick(harness, ["clock", "net"]),
       "GET",
       __circleci_api_url(
         cfg.api_base_url,
@@ -222,7 +222,7 @@ pub fn call(harness: Harness, method: string, args: dict = {}) {
   }
   if method == "job.get" {
     return __circleci_json(
-      {clock: harness.clock, net: harness.net},
+      pick(harness, ["clock", "net"]),
       "GET",
       __circleci_api_url(
         cfg.api_base_url,
@@ -235,7 +235,7 @@ pub fn call(harness: Harness, method: string, args: dict = {}) {
   }
   if method == "artifacts.list" {
     return __circleci_json(
-      {clock: harness.clock, net: harness.net},
+      pick(harness, ["clock", "net"]),
       "GET",
       __circleci_api_url(
         cfg.api_base_url,
@@ -248,7 +248,7 @@ pub fn call(harness: Harness, method: string, args: dict = {}) {
       cfg,
     )
   }
-  return __api_request({clock: harness.clock, net: harness.net}, args, cfg)
+  return __api_request(pick(harness, ["clock", "net"]), args, cfg)
 }
 
 /**
@@ -436,7 +436,7 @@ fn __verify_circleci_signature(
   headers: dict,
   body_text: string,
 ) {
-  const secret = __signing_secret({secrets: harness.secrets, runtime: harness.runtime}, raw)
+  const secret = __signing_secret(pick(harness, ["secrets", "runtime"]), raw)
   if secret == nil || trim(to_string(secret)) == "" {
     return __err(
       "missing_secret",
@@ -677,7 +677,7 @@ fn __api_request(harness: {clock: HarnessClock, net: HarnessNet}, args: dict, cf
     return __err("missing_path", "api.request requires a path")
   }
   const url = __circleci_api_url(cfg.api_base_url, path)
-  return __circleci_json({clock: harness.clock, net: harness.net}, method, url, args?.body, cfg)
+  return __circleci_json(pick(harness, ["clock", "net"]), method, url, args?.body, cfg)
 }
 
 fn __circleci_api_url(api_base_url: string, path: string) {
