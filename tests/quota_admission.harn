@@ -1,0 +1,63 @@
+import { call } from "../src/lib"
+
+pipeline test_circleci_quota_uses_shared_http(harness: Harness) {
+  harness.net.egress_policy({allow: ["circleci-api.test"], default: "deny"})
+  const base = "https://circleci-api.test/api/v2"
+  const workflow_id = "wf-bbbbbbbb-0000-1111-2222-333333333333"
+  const workflow_url = base + "/workflow/" + workflow_id
+  const args = {api_base_url: base, api_token: "circle-token-xyz", workflow_id: workflow_id}
+  harness.testing.clock_set(1000000)
+  harness.testing.http_mock_clear()
+  harness.testing.http_mock(
+    "GET",
+    workflow_url,
+    {
+      status: 200,
+      body: "{\"id\":\"" + workflow_id + "\"}",
+      headers: {"x-ratelimit-remaining": "0", "retry-after": "2"},
+    },
+  )
+  assert_eq(call(harness, "workflow.get", args).id, workflow_id)
+  assert_eq(harness.clock.now_ms() - 1000000, 2000, "relative quota wait")
+  assert_eq(len(harness.testing.http_mock_calls()), 1, "successful response sent once")
+  harness.testing.http_mock_clear()
+  harness.testing.http_mock(
+    "GET",
+    workflow_url,
+    {
+      responses: [
+        {status: 429, body: "limited", headers: {"x-ratelimit-remaining": "0"}},
+        {status: 200, body: "{\"id\":\"" + workflow_id + "\"}"},
+      ],
+    },
+  )
+  assert_eq(call(harness, "workflow.get", args).id, workflow_id)
+  assert_eq(len(harness.testing.http_mock_calls()), 2, "read retries once")
+  harness.testing.http_mock_clear()
+  harness.testing.http_mock(
+    "POST",
+    workflow_url + "/rerun",
+    {
+      responses: [
+        {status: 429, body: "limited", headers: {"x-ratelimit-remaining": "0"}},
+        {status: 202, body: "{\"workflow_id\":\"" + workflow_id + "\"}"},
+      ],
+    },
+  )
+  const rerun_result = call(harness, "workflow.rerun", args)
+  assert(is_err(rerun_result), "an unkeyed rerun is not duplicated")
+  assert_eq(unwrap_err(rerun_result).code, "rate_limited")
+  assert_eq(len(harness.testing.http_mock_calls()), 1, "unkeyed rerun sent once")
+  harness.testing.http_mock_clear()
+  harness.testing.http_mock(
+    "GET",
+    workflow_url,
+    {status: 429, body: "limited", headers: {"x-ratelimit-remaining": "0", "retry-after": "120"}},
+  )
+  const capped = call(harness, "workflow.get", args)
+  assert(is_err(capped), "wait beyond one minute is capped")
+  assert_eq(unwrap_err(capped).code, "rate_limited")
+  assert_eq(len(harness.testing.http_mock_calls()), 1, "capped request sent once")
+  assert_eq(harness.clock.now_ms() - 1000000, 2000, "capped request did not wait")
+  harness.testing.clock_reset()
+}

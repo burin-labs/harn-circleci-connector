@@ -1,3 +1,5 @@
+import { connector_http_request } from "std/connectors/http"
+
 const CIRCLECI_PROVIDER_ID = "circleci"
 
 const CIRCLECI_STATE_KEY = "harn-circleci-connector.state"
@@ -812,79 +814,45 @@ fn __circleci_json(
 ) {
   let options = {
     headers: {Accept: "application/json", "Circle-Token": cfg.api_token},
-    retry: {backoff_ms: 0, max: 0},
+    retry_policy: {max_attempts: 2, base_ms: 0, cap_ms: 60000, retry_on: [429, 503]},
+    quota: {
+      remaining_header: "X-RateLimit-Remaining",
+      reset_header: "Retry-After",
+      reset_is_epoch: false,
+    },
   }
   if body != nil {
     options["body"] = json_stringify(body)
     options.headers["Content-Type"] = "application/json"
   }
-  let retried_rate_limit = false
-  while true {
-    const response_result = try {
-      harness.net.request(method, url, options)
+  const response = connector_http_request(harness.clock, harness.net, method, url, options)
+  if !(response.ok ?? false) {
+    const status = response.status ?? response.error?.status
+    const code = if response.error?.category == "rate_limit" || status == 429 || status == 503 {
+      "rate_limited"
+    } else if status == 401 || status == 403 {
+      "unauthorized"
+    } else {
+      "transport"
     }
-    if is_err(response_result) {
-      return __err("transport", to_string(unwrap_err(response_result)))
-    }
-    const response = unwrap(response_result)
-    const limited = __maybe_wait_for_rate_limit(harness.clock, response)
-    if is_err(limited) {
-      return limited
-    }
-    if (response.status == 429 || response.status == 503) && unwrap(limited)
-      && !retried_rate_limit {
-      retried_rate_limit = true
-      continue
-    }
-    if response.status < 200 || response.status >= 300 {
-      const code = if response.status == 429 || response.status == 503 {
-        "rate_limited"
-      } else if response.status == 401 || response.status == 403 {
-        "unauthorized"
-      } else {
-        "transport"
-      }
-      return __err(
-        code,
-        "circleci API request failed with status " + to_string(response.status) + ": "
-          + response.body,
+    const message = if status == nil {
+      to_string(
+        response.error?.message ?? response.error?.category ?? "CircleCI API request failed",
       )
+    } else {
+      "circleci API request failed with status " + to_string(status) + ": "
+        + to_string(response.body ?? "")
     }
-    if trim(response.body ?? "") == "" {
-      return {body: "", headers: response.headers, status: response.status}
-    }
-    const parsed = try {
-      json_parse(response.body)
-    }
-    if is_err(parsed) {
-      return __err("invalid_response", "CircleCI API returned invalid JSON")
-    }
-    return unwrap(parsed)
+    return __err(code, message)
   }
-}
-
-@complexity(allow)
-fn __maybe_wait_for_rate_limit(clock: HarnessClock, response: dict) {
-  const remaining = __header(response.headers ?? {}, "x-ratelimit-remaining")
-  if remaining == nil || trim(to_string(remaining)) != "0" {
-    return Ok(false)
+  if trim(response.body ?? "") == "" {
+    return {body: "", headers: response.headers, status: response.status}
   }
-  const retry_after = __header(response.headers ?? {}, "retry-after")
-  if retry_after == nil || trim(to_string(retry_after)) == "" {
-    return Ok(true)
+  const parsed = try {
+    json_parse(response.body)
   }
-  const parsed_retry = try {
-    to_int(retry_after)
+  if is_err(parsed) {
+    return __err("invalid_response", "CircleCI API returned invalid JSON")
   }
-  if is_err(parsed_retry) {
-    return Ok(true)
-  }
-  const wait_seconds = unwrap(parsed_retry)
-  if wait_seconds > 60 {
-    return __err("rate_limited", "circleci API retry-after is more than 60 seconds away")
-  }
-  if wait_seconds > 0 {
-    clock.sleep_ms(wait_seconds * 1000)
-  }
-  return Ok(true)
+  return unwrap(parsed)
 }
