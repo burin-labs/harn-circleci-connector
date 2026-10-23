@@ -7,6 +7,9 @@ this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 
 ### Changed
 
+- Share lifecycle state handling with Harn while preserving initialization,
+  activation, refusal, and shutdown responses.
+
 - Harn source boundaries now use explicit parameter types, and
   `github_commit_pulls` takes one named request record instead of four
   easy-to-swap strings.

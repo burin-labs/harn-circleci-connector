@@ -1,0 +1,61 @@
+import { activate, init, shutdown } from "../src/lib"
+
+pipeline test_circleci_lifecycle_contract(harness: Harness) {
+  const state_key = "harn-circleci-connector.state"
+  const foreign_key = "harn-gitlab-connector.state"
+  const foreign_state = {initialized: true, active: true, bindings: {other: {id: "other"}}, ctx: {}}
+  harness.runtime.store_set(foreign_key, foreign_state)
+  shutdown(harness)
+  const duplicate = [
+    {id: "one", path: "/hooks/shared"},
+    {id: "two", match: {path: "/hooks/shared"}},
+  ]
+  const refused = activate(harness, duplicate)
+  assert_eq(
+    unwrap_err(refused),
+    {
+      code: "activation",
+      message: "circleci connector path `/hooks/shared` is configured by multiple bindings",
+    },
+  )
+  assert_eq(harness.runtime.store_get(state_key), nil, "refusal cannot create state")
+  assert_eq(
+    init(harness),
+    {initialized: true, active: false, bindings: {}, ctx: {}},
+    "default initialization shape",
+  )
+  const bindings = [
+    {binding_id: "primary", id: "ignored", path: "/hooks/circleci"},
+    {id: "secondary", match: {path: "/hooks/secondary"}},
+    {path: ""},
+  ]
+  assert_eq(
+    activate(harness, bindings),
+    {provider: "circleci", kind: "webhook", bindings: 3},
+    "activation response shape",
+  )
+  const expected_bindings = {
+    primary: {binding_id: "primary", id: "ignored", path: "/hooks/circleci"},
+    secondary: {id: "secondary", match: {path: "/hooks/secondary"}, binding_id: "secondary"},
+    "binding-2": {path: "", binding_id: "binding-2"},
+  }
+  assert_eq(
+    init(harness, {name: "circleci"}),
+    {initialized: true, active: true, bindings: expected_bindings, ctx: {name: "circleci"}},
+    "reinitialization preserves bindings",
+  )
+  const before = harness.runtime.store_get(state_key)
+  assert(is_err(activate(harness, duplicate)), "duplicate paths refuse")
+  assert_eq(harness.runtime.store_get(state_key), before, "refusal cannot replace active state")
+  assert_eq(
+    activate(harness),
+    {provider: "circleci", kind: "webhook", bindings: 0},
+    "empty activation response shape",
+  )
+  assert_eq(harness.runtime.store_get(state_key).bindings, {}, "empty activation clears bindings")
+  assert_eq(shutdown(harness), {provider: "circleci", active: false}, "shutdown response shape")
+  assert_eq(harness.runtime.store_get(state_key), nil, "shutdown deletes own state")
+  assert_eq(shutdown(harness), {provider: "circleci", active: false}, "shutdown is repeatable")
+  assert_eq(harness.runtime.store_get(foreign_key), foreign_state, "other provider is unchanged")
+  harness.runtime.store_delete(foreign_key)
+}
