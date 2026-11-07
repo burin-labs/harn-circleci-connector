@@ -1,4 +1,4 @@
-import { connector_http_request } from "std/connectors/http"
+import { connector_http_request, connector_http_validate_url_host } from "std/connectors/http"
 import { connector_lifecycle } from "std/connectors/shared"
 
 const CIRCLECI_PROVIDER_ID = "circleci"
@@ -681,102 +681,12 @@ fn __circleci_api_url(api_base_url: string, path: string) {
   return prefix + "/" + path
 }
 
-@complexity(allow)
 fn __validate_api_base_url(api_base_url: string?) {
-  if api_base_url == nil || trim(to_string(api_base_url)) == "" {
-    return __err("invalid_api_base_url", "api_base_url is required")
-  }
-  const url = trim(to_string(api_base_url))
-  if !starts_with(lowercase(url), "https://") {
-    return __err("invalid_api_base_url", "api_base_url must use https:// scheme")
-  }
-  const after_scheme = url[8:len(url)]
-  const slash_idx = __index_of(after_scheme, "/")
-  const host_port = if slash_idx >= 0 {
-    after_scheme[0:slash_idx]
-  } else {
-    after_scheme
-  }
-  const host = __strip_port(host_port)
-  if host == "" {
-    return __err("invalid_api_base_url", "api_base_url is missing a host")
-  }
-  const host_lc = lowercase(host)
-  if __is_disallowed_host(host_lc) {
-    return __err(
-      "invalid_api_base_url",
-      "api_base_url host `" + host
-        + "` is not allowed (loopback/private/link-local/.internal/.local are blocked)",
-    )
+  const checked = connector_http_validate_url_host(api_base_url, "api_base_url")
+  if is_err(checked) {
+    return __err("invalid_api_base_url", unwrap_err(checked))
   }
   return Ok(true)
-}
-
-fn __strip_port(host_port: string) {
-  if starts_with(host_port, "[") {
-    const close = __index_of(host_port, "]")
-    if close >= 0 {
-      return host_port[1:close]
-    }
-    return host_port
-  }
-  const colon = __index_of(host_port, ":")
-  if colon >= 0 {
-    return host_port[0:colon]
-  }
-  return host_port
-}
-
-fn __index_of(text: string, needle: string) {
-  const n = len(text)
-  const m = len(needle)
-  if m == 0 {
-    return 0
-  }
-  let i = 0
-  while i + m <= n {
-    if text[i:i + m] == needle {
-      return i
-    }
-    i = i + 1
-  }
-  return -1
-}
-
-@complexity(allow)
-fn __is_disallowed_host(host_lc: string) {
-  if host_lc == "localhost" {
-    return true
-  }
-  if ends_with(host_lc, ".localhost") || ends_with(host_lc, ".local")
-    || ends_with(host_lc, ".internal") {
-    return true
-  }
-  if host_lc == "::1" || host_lc == "0:0:0:0:0:0:0:1" {
-    return true
-  }
-  if starts_with(host_lc, "127.") || starts_with(host_lc, "10.")
-    || starts_with(host_lc, "169.254.")
-    || starts_with(host_lc, "192.168.") {
-    return true
-  }
-  if starts_with(host_lc, "172.") {
-    const rest = host_lc[4:len(host_lc)]
-    const dot = __index_of(rest, ".")
-    if dot > 0 {
-      const octet_str = rest[0:dot]
-      const parsed = try {
-        to_int(octet_str)
-      }
-      if !is_err(parsed) {
-        const octet = unwrap(parsed)
-        if octet >= 16 && octet <= 31 {
-          return true
-        }
-      }
-    }
-  }
-  return false
 }
 
 fn __pagination_query(args: dict) {
