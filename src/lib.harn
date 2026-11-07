@@ -1,4 +1,8 @@
-import { connector_http_request, connector_http_validate_url_host } from "std/connectors/http"
+import {
+  connector_http_header,
+  connector_http_request,
+  connector_http_validate_url_host,
+} from "std/connectors/http"
 import { connector_lifecycle } from "std/connectors/shared"
 
 const CIRCLECI_PROVIDER_ID = "circleci"
@@ -350,13 +354,11 @@ fn __reject_err(err: dict) {
 }
 
 fn __header(headers: dict, name: string) {
-  const wanted = lowercase(name)
-  for entry in (headers ?? {}).entries() {
-    if lowercase(trim(to_string(entry.key))) == wanted {
-      return trim(to_string(entry.value))
-    }
-  }
-  return nil
+  // Reverse aliases so the original first matching field still wins.
+  const pairs = (headers ?? {}).entries().reversed().map(
+    { entry -> [lowercase(trim(to_string(entry.key))), trim(to_string(entry.value))] },
+  )
+  return connector_http_header(dict_from_pairs(pairs), name)
 }
 
 fn __event_type_from_header(headers: dict) {
